@@ -1,0 +1,54 @@
+--- a/app/src/main/java/com/example/services/SupabaseService.kt
++++ b/app/src/main/java/com/example/services/SupabaseService.kt
+@@ -350,25 +350,55 @@ class SupabaseService private constructor(private val context: Context) {
+-    suspend fun saveBooking(request: TransportRequest): Result<TransportRequest> = withContext(Dispatchers.IO) {
++    suspend fun saveBooking(request: TransportRequest): Result<TransportRequest> = withContext(Dispatchers.IO) {
++        try {
++            logSessionDetailsBeforeBooking()
++            val user = getCurrentUser()
++            val token = getCurrentAccessToken()
++            val currentFarmerId = when {
++                !request.farmerId.isNullOrBlank() && isValidUUID(request.farmerId) -> request.farmerId
++                user?.id != null && isValidUUID(user.id) -> user.id
++                else -> request.farmerId ?: ""
++            }
++            val payload = buildJsonObject {
++                put("title", request.title)
++                put("pickup_location", request.pickupLocation)
++                put("destination", request.destination)
++                put("crop_type", request.cropType)
++                put("quantity_tons", request.quantityTons)
++                put("pickup_date", request.pickupDate)
++                put("truck_type_needed", request.truckTypeNeeded)
++                put("status", request.status)
++                if (currentFarmerId.isNotBlank()) {
++                    put("farmer_id", currentFarmerId)
++                }
++                if (request.estimatedCost != null) {
++                    put("estimated_cost", request.estimatedCost)
++                }
++                if (request.notes != null) {
++                    put("notes", request.notes)
++                }
++            }
++            val client = getHttpClient()
++            val restUrl = SupabaseClientConfig.getRestUrl()
++            val response: HttpResponse = client.post("$restUrl/transport_requests") {
++                header("Prefer", "return=representation")
++                contentType(ContentType.Application.Json)
++                setBody(payload.toString())
++            }
++            if (response.status.isSuccess()) {
++                val responseBody = response.bodyAsText()
++                val jsonArray = Json.parseToJsonElement(responseBody).jsonArray
++                val insertedObj = jsonArray.firstOrNull()?.jsonObject
++                val createdId = insertedObj?.get("id")?.jsonPrimitive?.contentOrNull ?: request.id
++                Result.success(request.copy(id = createdId, farmerId = currentFarmerId))
++            } else {
++                val errorBody = response.bodyAsText()
++                Result.failure(Exception("Failed: ${response.status.value} - $errorBody"))
++            }
++        } catch (e: Exception) {
++            Result.failure(e)
++        }
++    }

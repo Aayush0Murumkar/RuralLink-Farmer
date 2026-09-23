@@ -1,0 +1,6 @@
+{
+  "name": "RuralLink Farmer",
+  "description": "Rural agricultural transport booking and logistics marketplace connecting farmers with verified transporters",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
